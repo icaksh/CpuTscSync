@@ -84,7 +84,7 @@ bool VoodooTSCSync::start(IOService *provider) {
 void VoodooTSCSync::stop(IOService *provider)
 {
 
-    if (myTimer)
+    if (myTimer && checkKernelArgument("-cputsnoloop"))
     {
         myTimer->cancelTimeout();
         myWorkLoop->removeEventSource(myTimer);
