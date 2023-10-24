@@ -28,6 +28,9 @@ class VoodooTSCSync : public IOService
         {kIOPMPowerStateVersion1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
         {kIOPMPowerStateVersion1, kIOPMPowerOn | kIOPMDeviceUsable, kIOPMPowerOn, kIOPMPowerOn, 0, 0, 0, 0, 0, 0, 0, 0}
     };
+    IOWorkLoop* myWorkLoop;
+    IOTimerEventSource* myTimer;
+    void sync_tsc_wrapper();
 
 public:
     /**
@@ -56,5 +59,5 @@ public:
      *  @param state      power state index (must be below PowerStateMax)
      *  @param whatDevice power state device
      */
-    IOReturn setPowerState(unsigned long state, IOService *whatDevice) override;
+    virtual void stop(IOService *provider) override;
 };

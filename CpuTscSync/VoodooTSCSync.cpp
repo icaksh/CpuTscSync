@@ -2,11 +2,12 @@
 #include "CpuTscSync.hpp"
 
 #include <i386/proc_reg.h>
+#include <IOKit/IOTimerEventSource.h>
 
 OSDefineMetaClassAndStructors(VoodooTSCSync, IOService)
 
 
-int getThreadCount() {
+inline int getThreadCount() {
     unsigned int threads = 0;
     
     asm volatile (
@@ -18,11 +19,8 @@ int getThreadCount() {
         : "%eax", "%ecx"
     );
     
-    threads = (threads & 0xFF) + 1;
-    
-    return threads;
+    return (threads & 0xFF) + 1;
 }
-
 
 IOService* VoodooTSCSync::probe(IOService* provider, SInt32* score)
 {
@@ -35,15 +33,20 @@ IOService* VoodooTSCSync::probe(IOService* provider, SInt32* score)
     if (getKernelVersion() >= KernelVersion::Monterey) {
         // only attach to the first CPU
         if (cpuNumber->unsigned16BitValue() != 0) return NULL;
-        CpuTscSyncPlugin::tsc_adjust_or_reset();
     } else {
         // only attach to the last CPU
         uint16_t threadCount = getThreadCount();
         if (cpuNumber->unsigned16BitValue() != threadCount-1) return NULL;
-        CpuTscSyncPlugin::tsc_adjust_or_reset();
     }
 
     return this;
+}
+
+void VoodooTSCSync::sync_tsc_wrapper(){
+    // doesn't sync when wake, wait clock_get_calendar_microtime to sync
+    if(CpuTscSyncPlugin::tsc_synced){
+        CpuTscSyncPlugin::tsc_adjust_or_reset();
+    }
 }
 
 bool VoodooTSCSync::start(IOService *provider) {
@@ -51,22 +54,43 @@ bool VoodooTSCSync::start(IOService *provider) {
         SYSLOG("cputs", "failed to start the parent");
         return false;
     }
-
-    PMinit();
-    provider->joinPMtree(this);
-    registerPowerDriver(this, powerStates, arrsize(powerStates));
+    
+    if(checkKernelArgument("-cputsnoloop"))return true;
+    
+    SYSLOG("cputs", "TSC will be synced via timer");
+    
+    myWorkLoop = getWorkLoop();
+            
+    // Create IOKit timer
+    myTimer = IOTimerEventSource::timerEventSource(this,OSMemberFunctionCast(IOTimerEventSource::Action, this, &VoodooTSCSync::sync_tsc_wrapper));
+    
+    if (!myTimer)
+    {
+        DBGLOG("cputs","Failed to create timer event source");
+        return false;
+    }
+    
+    if (myWorkLoop->addEventSource(myTimer) != kIOReturnSuccess)
+    {
+        DBGLOG("cputs","Failed to add timer event source to workloop");
+        return false;
+    }
+    
+    myTimer->setTimeoutMS(5000);
 
     return true;
 }
 
-IOReturn VoodooTSCSync::setPowerState(unsigned long state, IOService *whatDevice){
-    if (!CpuTscSyncPlugin::is_non_legacy_method_used_to_sync()) {
-        DBGLOG("cputs", "changing power state to %lu", state);
-        if (state == PowerStateOff)
-            CpuTscSyncPlugin::reset_sync_flag();
-        if (state == PowerStateOn)
-            CpuTscSyncPlugin::tsc_adjust_or_reset();
-    }
+void VoodooTSCSync::stop(IOService *provider)
+{
 
-    return kIOPMAckImplied;
+    if (myTimer)
+    {
+        myTimer->cancelTimeout();
+        myWorkLoop->removeEventSource(myTimer);
+        myTimer->release();
+        myTimer = NULL;
+    }
+    
+    IOService::stop(provider);
 }
