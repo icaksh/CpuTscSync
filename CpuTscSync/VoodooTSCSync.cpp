@@ -5,6 +5,25 @@
 
 OSDefineMetaClassAndStructors(VoodooTSCSync, IOService)
 
+
+int getThreadCount() {
+    unsigned int threads = 0;
+    
+    asm volatile (
+        "mov $0x80000008, %%eax\n"
+        "cpuid\n"
+        "mov %%ecx, %0\n"
+        : "=r" (threads)
+        :
+        : "%eax", "%ecx"
+    );
+    
+    threads = (threads & 0xFF) + 1;
+    
+    return threads;
+}
+
+
 IOService* VoodooTSCSync::probe(IOService* provider, SInt32* score)
 {
     if (!provider) return NULL;
@@ -19,7 +38,7 @@ IOService* VoodooTSCSync::probe(IOService* provider, SInt32* score)
         CpuTscSyncPlugin::tsc_adjust_or_reset();
     } else {
         // only attach to the last CPU
-        uint16_t threadCount = rdmsr64(MSR_CORE_THREAD_COUNT);
+        uint16_t threadCount = getThreadCount();
         if (cpuNumber->unsigned16BitValue() != threadCount-1) return NULL;
         CpuTscSyncPlugin::tsc_adjust_or_reset();
     }
