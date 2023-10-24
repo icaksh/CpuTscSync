@@ -79,10 +79,8 @@ bool CpuTscSyncPlugin::is_non_legacy_method_used_to_sync()
 void CpuTscSyncPlugin::init()
 {
     callbackCpuf = this;
-    use_trace_point_method_to_sync = (getKernelVersion() >= KernelVersion::Lion);
-    use_clock_get_calendar_to_sync = (getKernelVersion() >= KernelVersion::ElCapitan) && (checkKernelArgument("TSC_sync_margin") || checkKernelArgument("-cputsclock"));
-    if (use_clock_get_calendar_to_sync)
-        use_trace_point_method_to_sync = false;
+    use_trace_point_method_to_sync = false;
+    use_clock_get_calendar_to_sync = true;
 
     lilu.onPatcherLoadForce(
         [](void *user, KernelPatcher &patcher) {
@@ -155,8 +153,8 @@ void CpuTscSyncPlugin::processKernel(KernelPatcher &patcher)
         patcher.clearError();
         
         KernelPatcher::RouteRequest requests[] {
-            {"_xcpm_urgency", xcpm_urgency, org_xcpm_urgency},
-            {"__ZN14IOPMrootDomain10tracePointEh", IOPMrootDomain_tracePoint, orgIOPMrootDomain_tracePoint},
+            //{"_xcpm_urgency", xcpm_urgency, org_xcpm_urgency},
+            //{"__ZN14IOPMrootDomain10tracePointEh", IOPMrootDomain_tracePoint, orgIOPMrootDomain_tracePoint},
             {"_clock_get_calendar_microtime", clock_get_calendar_microtime, org_clock_get_calendar_microtime }
         };
 
