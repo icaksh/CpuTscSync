@@ -24,22 +24,17 @@ public:
 	
 private:
     _Atomic(bool) kernel_routed = false;
-    static _Atomic(bool)     kernel_is_awake;
     
 private:
 	/**
 	 *  Trampolines for original resource load callback
 	 */
-    mach_vm_address_t orgIOHibernateSystemHasSlept {0};
-    mach_vm_address_t orgIOHibernateSystemWake {0};
     mach_vm_address_t orgIOPMrootDomain_tracePoint {0};
     mach_vm_address_t org_clock_get_calendar_microtime {0};
     
 	/**
 	 *  Hooked functions
 	 */
-    static IOReturn IOHibernateSystemHasSlept();
-    static IOReturn IOHibernateSystemWake();
     static void     IOPMrootDomain_tracePoint( void *that, uint8_t point );
     static void     clock_get_calendar_microtime(clock_sec_t *secs, clock_usec_t *microsecs);
  	
